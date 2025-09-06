@@ -1,0 +1,186 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Dark theme (default) */
+    --background: 240 10% 3.9%;
+    --foreground: 0 0% 98%;
+    --card: 240 10% 3.9%;
+    --card-foreground: 0 0% 98%;
+    --popover: 240 10% 3.9%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 142.1 76.2% 36.3%;
+    --primary-foreground: 355.7 100% 97.3%;
+    --secondary: 240 3.7% 15.9%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 240 3.7% 15.9%;
+    --muted-foreground: 240 5% 64.9%;
+    --accent: 240 3.7% 15.9%;
+    --accent-foreground: 0 0% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 240 3.7% 15.9%;
+    --input: 240 3.7% 15.9%;
+    --ring: 142.1 76.2% 36.3%;
+    --radius: 0.5rem;
+    
+    /* Custom Design System */
+    --gradient-primary: linear-gradient(135deg, hsl(142.1 76.2% 36.3%) 0%, hsl(158.1 64.4% 51.6%) 100%);
+    --gradient-secondary: linear-gradient(135deg, hsl(217.2 91.2% 59.8%) 0%, hsl(212.7 26.8% 83.9%) 100%);
+    --gradient-accent: linear-gradient(135deg, hsl(270.1 95.2% 75.8%) 0%, hsl(292.2 84.1% 60.6%) 100%);
+    
+    --glass-bg: 240 10% 3.9% / 0.5;
+    --glass-border: 0 0% 100% / 0.1;
+    
+    --orb-1: 142.1 76.2% 36.3% / 0.4;
+    --orb-2: 217.2 91.2% 59.8% / 0.3;
+    --orb-3: 270.1 95.2% 75.8% / 0.35;
+    
+    --shadow-glow: 0 20px 40px -12px hsl(142.1 76.2% 36.3% / 0.25);
+    --shadow-card: 0 4px 6px -1px hsl(0 0% 0% / 0.1), 0 2px 4px -1px hsl(0 0% 0% / 0.06);
+    
+    --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-spring: all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+
+  .light {
+    /* Light theme overrides */
+    --background: 0 0% 100%;
+    --foreground: 240 10% 3.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 240 10% 3.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 240 10% 3.9%;
+    --primary: 142.1 76.2% 36.3%;
+    --primary-foreground: 355.7 100% 97.3%;
+    --secondary: 240 4.8% 95.9%;
+    --secondary-foreground: 240 5.9% 10%;
+    --muted: 240 4.8% 95.9%;
+    --muted-foreground: 240 3.8% 46.1%;
+    --accent: 240 4.8% 95.9%;
+    --accent-foreground: 240 5.9% 10%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 240 5.9% 90%;
+    --input: 240 5.9% 90%;
+    --ring: 142.1 76.2% 36.3%;
+    
+    --glass-bg: 0 0% 100% / 0.8;
+    --glass-border: 240 5.9% 90% / 0.5;
+    
+    /* Light theme orb colors */
+    --orb-1: 142.1 76.2% 36.3% / 0.2;
+    --orb-2: 217.2 91.2% 59.8% / 0.15;
+    --orb-3: 270.1 95.2% 75.8% / 0.2;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+}
+
+@layer components {
+  .glass-card {
+    @apply backdrop-blur-md bg-[hsl(var(--glass-bg))] border border-[hsl(var(--glass-border))] shadow-[var(--shadow-card)];
+  }
+  
+  .gradient-primary {
+    background: var(--gradient-primary);
+  }
+  
+  .gradient-secondary {
+    background: var(--gradient-secondary);
+  }
+  
+  .gradient-accent {
+    background: var(--gradient-accent);
+  }
+  
+  .glow-primary {
+    box-shadow: var(--shadow-glow);
+  }
+  
+  .transition-smooth {
+    transition: var(--transition-smooth);
+  }
+  
+  .transition-spring {
+    transition: var(--transition-spring);
+  }
+  
+  .orb {
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(80px);
+    pointer-events: none;
+    z-index: -1;
+    animation: float 6s ease-in-out infinite;
+  }
+  
+  .orb-1 {
+    background: radial-gradient(circle, hsl(var(--orb-1)) 0%, transparent 70%);
+    animation-delay: 0s;
+  }
+  
+  .orb-2 {
+    background: radial-gradient(circle, hsl(var(--orb-2)) 0%, transparent 70%);
+    animation-delay: 2s;
+  }
+  
+  .orb-3 {
+    background: radial-gradient(circle, hsl(var(--orb-3)) 0%, transparent 70%);
+    animation-delay: 4s;
+  }
+}
+
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0px) rotate(0deg);
+    opacity: 0.8;
+  }
+  33% {
+    transform: translateY(-20px) rotate(120deg);
+    opacity: 0.9;
+  }
+  66% {
+    transform: translateY(10px) rotate(240deg);
+    opacity: 0.7;
+  }
+}
+
+@keyframes wallet-glow {
+  0%, 100% {
+    box-shadow: 0 0 20px rgba(34, 197, 94, 0.4), 0 0 40px rgba(34, 197, 94, 0.2), 0 0 60px rgba(34, 197, 94, 0.1);
+    border-color: rgb(34, 197, 94);
+  }
+  50% {
+    box-shadow: 0 0 30px rgba(34, 197, 94, 0.6), 0 0 50px rgba(34, 197, 94, 0.3), 0 0 70px rgba(34, 197, 94, 0.15);
+    border-color: rgb(34, 197, 94);
+  }
+}
+
+@keyframes wallet-pulse {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.02);
+    opacity: 0.9;
+  }
+}
+
+.wallet-connect-glow {
+  animation: wallet-glow 2s ease-in-out infinite, wallet-pulse 3s ease-in-out infinite;
+}
+
+.wallet-connect-glow:hover {
+  animation: wallet-glow 1s ease-in-out infinite, wallet-pulse 1.5s ease-in-out infinite;
+}
