@@ -36,9 +36,9 @@ const Landing = () => {
   ];
 
   const stats = [
-    { title: "Active Plans", value: "2,847", description: "Currently staking" },
-    { title: "Total Users", value: "15,429", description: "Community members" },
-    { title: "Rewards Pool", value: "$2.4M", description: "Total distributed" },
+    { title: "Active Users", value: "2000+", description: "Community members" },
+    { title: "Total Stakes", value: "500+", description: "Currently staking" },
+    { title: "Rewards Distributed", value: "1000+", description: "Total distributed" },
     { title: "Success Rate", value: "99.9%", description: "Uptime guarantee" }
   ];
 

@@ -1,0 +1,27 @@
+{
+  "name": "staking-backend",
+  "version": "1.0.0",
+  "description": "Supabase backend for ETH staking platform",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "dev": "supabase start",
+    "deploy": "supabase functions deploy",
+    "db:reset": "supabase db reset",
+    "db:migrate": "supabase db push"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.38.0"
+  },
+  "devDependencies": {
+    "supabase": "^1.123.0"
+  },
+  "keywords": [
+    "supabase",
+    "staking",
+    "ethereum",
+    "backend"
+  ],
+  "author": "",
+  "license": "MIT"
+}

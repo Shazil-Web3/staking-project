@@ -4,6 +4,7 @@ import Navbar from "../components/Navbar";
 import BackgroundOrbs from "../components/BackgroundOrbs";
 import Footer from "../components/Footer";
 import LenisProvider from "../components/LenisProvider";
+import { WalletProvider } from "../components/WalletProvider";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -26,16 +27,18 @@ export default function RootLayout({ children }) {
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <LenisProvider>
-          <div className="min-h-screen bg-background relative flex flex-col">
-            <BackgroundOrbs />
-            <Navbar />
-            <main className="pt-24 flex-1">
-              {children}
-            </main>
-            <Footer />
-          </div>
-        </LenisProvider>
+        <WalletProvider>
+          <LenisProvider>
+            <div className="min-h-screen bg-background relative flex flex-col">
+              <BackgroundOrbs />
+              <Navbar />
+              <main className="pt-24 flex-1">
+                {children}
+              </main>
+              <Footer />
+            </div>
+          </LenisProvider>
+        </WalletProvider>
       </body>
     </html>
   );
