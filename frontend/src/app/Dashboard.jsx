@@ -11,6 +11,7 @@ import { AlertTriangle, Wallet, Clock, TrendingUp, Plus } from 'lucide-react';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { useAccount, useConnect, useSwitchChain } from 'wagmi';
 import { SEPOLIA_CHAIN_ID } from '@/lib/walletConfig';
+import { useStaking } from '@/context/context';
 import { 
   getPositions, 
   getUserStats, 
@@ -18,6 +19,7 @@ import {
   getUpcomingMaturities,
   createPosition,
   updatePositionStatus,
+  updatePositionStatusByIndex,
   logWalletConnected,
   logWalletDisconnected,
   subscribeToPositions,
@@ -35,10 +37,22 @@ const Dashboard = () => {
   const [upcomingMaturities, setUpcomingMaturities] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [txHash, setTxHash] = useState(null);
   
   const { address, isConnected, chain } = useAccount();
   const { connect, connectors } = useConnect();
   const { switchChain } = useSwitchChain();
+
+  // Smart contract integration
+  const {
+    userPositions: contractPositions,
+    contractData,
+    stakingPlans,
+    stake: contractStake,
+    withdraw: contractWithdraw,
+    emergencyWithdraw: contractEmergencyWithdraw,
+    isLoading: contractLoading
+  } = useStaking();
 
   // Check if user is on Sepolia testnet
   const isOnSepolia = chain?.id === SEPOLIA_CHAIN_ID;
@@ -134,13 +148,13 @@ const Dashboard = () => {
   ];
 
   const calculateReward = () => {
-    if (!stakeAmount || !selectedPlan) return '0.00';
+    if (!stakeAmount || !selectedPlan) return '0.000000';
     const amount = parseFloat(stakeAmount);
     const plan = plans.find(p => p.value === selectedPlan);
-    if (!plan) return '0.00';
+    if (!plan) return '0.000000';
     
     const totalReturn = amount * (1 + plan.bonus / 100);
-    return totalReturn.toFixed(2);
+    return totalReturn.toFixed(6);
   };
 
   const handleStake = async () => {
@@ -148,24 +162,42 @@ const Dashboard = () => {
     
     setLoading(true);
     setError(null);
+    setTxHash(null);
     
     try {
       const planId = parseInt(selectedPlan);
-      const principalAmount = parseFloat(stakeAmount);
-      const bonusAmount = principalAmount * (plans[planId].bonus / 100);
-      const unlockDate = new Date(Date.now() + plans[planId].days * 24 * 60 * 60 * 1000);
+      const amount = parseFloat(stakeAmount);
       
-      // Create position in Supabase
-      const position = await createPosition(
+      console.log('Staking with:', { planId, amount, selectedPlan });
+      
+      // Find the plan to get bonus and days
+      const plan = plans.find(p => p.value === selectedPlan);
+      console.log('Found plan:', plan);
+      
+      if (!plan) {
+        throw new Error('Invalid plan selected');
+      }
+      
+      // Call smart contract stake function
+      console.log('Calling contractStake...');
+      const tx = await contractStake(planId, amount);
+      console.log('Transaction successful:', tx);
+      setTxHash(tx.hash);
+      
+      // Also create position in Supabase for UI tracking
+      const principalAmount = amount;
+      const bonusAmount = principalAmount * (plan.bonus / 100);
+      const unlockDate = new Date(Date.now() + plan.days * 24 * 60 * 60 * 1000);
+      
+      console.log('Creating Supabase position...');
+      await createPosition(
         address,
         planId,
         principalAmount,
         bonusAmount,
         unlockDate.toISOString(),
-        positions.length // position index
+        positions.length
       );
-      
-      console.log('Position created:', position);
       
       // Reset form
       setSelectedPlan('');
@@ -176,23 +208,52 @@ const Dashboard = () => {
       
     } catch (err) {
       console.error('Error creating stake:', err);
+      setError(err.message || 'Failed to create stake');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleWithdraw = async (positionIndex) => {
+    if (!address) return;
+    
+    setLoading(true);
+    setError(null);
+    setTxHash(null);
+    
+    try {
+      // Call smart contract withdraw function
+      const tx = await contractWithdraw(positionIndex);
+      setTxHash(tx.hash);
+      
+      // Also update position in Supabase for UI tracking
+      await updatePositionStatusByIndex(address, positionIndex, POSITION_STATUS.WITHDRAWN);
+      await fetchDashboardData();
+    } catch (err) {
+      console.error('Error withdrawing position:', err);
       setError(err.message);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleWithdraw = async (positionId) => {
+  const handleEmergencyWithdraw = async (positionIndex) => {
     if (!address) return;
     
     setLoading(true);
     setError(null);
+    setTxHash(null);
     
     try {
-      await updatePositionStatus(address, positionId, POSITION_STATUS.WITHDRAWN);
+      // Call smart contract emergency withdraw function
+      const tx = await contractEmergencyWithdraw(positionIndex);
+      setTxHash(tx.hash);
+      
+      // Also update position in Supabase for UI tracking
+      await updatePositionStatusByIndex(address, positionIndex, POSITION_STATUS.WITHDRAWN);
       await fetchDashboardData();
     } catch (err) {
-      console.error('Error withdrawing position:', err);
+      console.error('Error emergency withdrawing position:', err);
       setError(err.message);
     } finally {
       setLoading(false);
@@ -215,7 +276,17 @@ const Dashboard = () => {
   };
 
   const formatAmount = (amount) => {
-    return `${parseFloat(amount).toFixed(4)} ETH`;
+    const num = parseFloat(amount);
+    if (num < 0.001) {
+      return `${num.toFixed(6)} ETH`;
+    }
+    if (num < 0.01) {
+      return `${num.toFixed(6)} ETH`;
+    }
+    if (num < 1) {
+      return `${num.toFixed(6)} ETH`;
+    }
+    return `${num.toFixed(6)} ETH`;
   };
 
   return (
@@ -320,6 +391,25 @@ const Dashboard = () => {
         </motion.div>
       )}
 
+      {/* Success Display */}
+      {txHash && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="glass-card p-4 rounded-xl border-l-4 border-l-green-500 bg-green-500/5"
+        >
+          <div className="flex items-center gap-3">
+            <TrendingUp className="w-5 h-5 text-green-500" />
+            <div>
+              <p className="font-semibold text-green-600">Transaction Successful</p>
+              <p className="text-sm text-muted-foreground">
+                Transaction Hash: {txHash.slice(0, 10)}...{txHash.slice(-8)}
+              </p>
+            </div>
+          </div>
+        </motion.div>
+      )}
+
       {/* Status Callout */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
@@ -408,9 +498,10 @@ const Dashboard = () => {
               </div>
 
               <div>
-                <label className="text-sm font-medium mb-2 block">Amount to Stake</label>
+                <label className="text-sm font-medium mb-2 block">Amount to Stake (ETH)</label>
                 <Input
                   type="number"
+                  step="0.00000001"
                   placeholder={
                     !isConnected 
                       ? "Connect wallet first" 
@@ -420,7 +511,7 @@ const Dashboard = () => {
                   }
                   value={stakeAmount}
                   onChange={(e) => setStakeAmount(e.target.value)}
-                  className="glass-card border-0"
+                  className="glass-card border-0 [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none [-moz-appearance:textfield]"
                   disabled={!isConnected || !isOnSepolia}
                 />
               </div>
@@ -534,10 +625,22 @@ const Dashboard = () => {
                                 <Button
                                   size="sm"
                                   variant="outline"
-                                  onClick={() => handleWithdraw(position.id)}
+                                  onClick={() => handleWithdraw(position.position_index)}
                                   disabled={loading}
+                                  className="bg-green-500/10 hover:bg-green-500/20 border-green-500/30"
                                 >
                                   Withdraw
+                                </Button>
+                              )}
+                              {position.status === POSITION_STATUS.ACTIVE && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => handleEmergencyWithdraw(position.position_index)}
+                                  disabled={loading}
+                                  className="bg-orange-500/10 hover:bg-orange-500/20 border-orange-500/30"
+                                >
+                                  Emergency
                                 </Button>
                               )}
                             </div>
@@ -563,7 +666,7 @@ const Dashboard = () => {
         <Card className="glass-card border-0">
           <CardContent className="p-8 text-center">
             <div className="text-3xl font-bold text-primary mb-2">
-              {loading ? '...' : `${parseFloat(stats.total_staked || 0).toFixed(2)} ETH`}
+              {loading ? '...' : `${parseFloat(stats.total_staked || 0).toFixed(6)} ETH`}
             </div>
             <p className="text-sm text-muted-foreground">Total Staked</p>
           </CardContent>
@@ -571,7 +674,7 @@ const Dashboard = () => {
         <Card className="glass-card border-0">
           <CardContent className="p-8 text-center">
             <div className="text-3xl font-bold text-green-500 mb-2">
-              {loading ? '...' : `${parseFloat(stats.total_returns || 0).toFixed(2)} ETH`}
+              {loading ? '...' : `${parseFloat(stats.total_returns || 0).toFixed(6)} ETH`}
             </div>
             <p className="text-sm text-muted-foreground">Total Returns</p>
           </CardContent>
@@ -587,7 +690,7 @@ const Dashboard = () => {
         <Card className="glass-card border-0">
           <CardContent className="p-8 text-center">
             <div className="text-3xl font-bold text-purple-500 mb-2">
-              {loading ? '...' : `${parseFloat(stats.active_balance || 0).toFixed(2)} ETH`}
+              {loading ? '...' : `${parseFloat(stats.active_balance || 0).toFixed(6)} ETH`}
             </div>
             <p className="text-sm text-muted-foreground">Available Balance</p>
           </CardContent>

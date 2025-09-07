@@ -122,6 +122,28 @@ export const updatePositionStatus = async (walletAddress, positionId, newStatus)
 }
 
 /**
+ * Update position status by position index (for smart contract integration)
+ */
+export const updatePositionStatusByIndex = async (walletAddress, positionIndex, newStatus) => {
+  if (!walletAddress) throw new Error('Wallet address is required')
+  if (positionIndex === undefined || positionIndex === null) throw new Error('Position index is required')
+  if (!Object.values(POSITION_STATUS).includes(newStatus)) {
+    throw new Error('Invalid status')
+  }
+  
+  const { data, error } = await supabase
+    .from('positions')
+    .update({ status: newStatus })
+    .eq('position_index', positionIndex)
+    .eq('wallet_address', walletAddress)
+    .select()
+    .single()
+    
+  if (error) throw error
+  return data
+}
+
+/**
  * Get all positions for a wallet
  */
 export const getPositions = async (walletAddress) => {

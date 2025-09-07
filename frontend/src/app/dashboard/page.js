@@ -1,12 +1,12 @@
 "use client";
 
 import Dashboard from '../Dashboard';
-import { WalletProvider } from '@/components/WalletProvider';
+import { StakingProvider } from '@/context/context';
 
 export default function DashboardPage() {
   return (
-    <WalletProvider>
+    <StakingProvider>
       <Dashboard />
-    </WalletProvider>
+    </StakingProvider>
   );
 }
