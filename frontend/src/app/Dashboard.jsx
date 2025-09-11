@@ -77,6 +77,44 @@ const Dashboard = () => {
     }
   }, [address, isOnSepolia]);
 
+  // Use smart contract positions when available
+  useEffect(() => {
+    if (contractPositions && contractPositions.length > 0) {
+      // Convert smart contract positions to the format expected by the UI
+      const formattedPositions = contractPositions.map((position, index) => {
+        const plan = stakingPlans.find(p => p.id === position.planId);
+        const isMatured = position.isMatured && !position.withdrawn;
+        const isWithdrawn = position.withdrawn;
+        
+        // Debug logging
+        console.log('Position data:', {
+          id: position.id,
+          isMatured: position.isMatured,
+          withdrawn: position.withdrawn,
+          unlock: position.unlock,
+          currentTime: Date.now() / 1000,
+          status: isWithdrawn ? 'withdrawn' : (isMatured ? 'matured' : 'active')
+        });
+        
+        return {
+          id: position.id,
+          position_index: position.id,
+          plan_id: position.planId,
+          principal_amount: position.amount,
+          bonus_amount: position.bonusWei,
+          unlock_date: new Date(position.unlock * 1000).toISOString(),
+          status: isWithdrawn ? 'withdrawn' : (isMatured ? 'matured' : 'active'),
+          created_at: new Date(position.start * 1000).toISOString()
+        };
+      });
+      
+      setPositions(formattedPositions);
+    } else if (contractPositions && contractPositions.length === 0) {
+      // Clear positions if no contract positions
+      setPositions([]);
+    }
+  }, [contractPositions, stakingPlans]);
+
   // Set up real-time subscriptions
   useEffect(() => {
     if (!address) return;
@@ -226,9 +264,9 @@ const Dashboard = () => {
       const tx = await contractWithdraw(positionIndex);
       setTxHash(tx.hash);
       
-      // Also update position in Supabase for UI tracking
-      await updatePositionStatusByIndex(address, positionIndex, POSITION_STATUS.WITHDRAWN);
-      await fetchDashboardData();
+      // Refresh contract data to get updated positions
+      // The context will automatically update the positions
+      console.log('Withdrawal successful:', tx.hash);
     } catch (err) {
       console.error('Error withdrawing position:', err);
       setError(err.message);
@@ -249,9 +287,9 @@ const Dashboard = () => {
       const tx = await contractEmergencyWithdraw(positionIndex);
       setTxHash(tx.hash);
       
-      // Also update position in Supabase for UI tracking
-      await updatePositionStatusByIndex(address, positionIndex, POSITION_STATUS.WITHDRAWN);
-      await fetchDashboardData();
+      // Refresh contract data to get updated positions
+      // The context will automatically update the positions
+      console.log('Emergency withdrawal successful:', tx.hash);
     } catch (err) {
       console.error('Error emergency withdrawing position:', err);
       setError(err.message);
@@ -288,6 +326,7 @@ const Dashboard = () => {
     }
     return `${num.toFixed(6)} ETH`;
   };
+
 
   return (
     <div className="container mx-auto px-6 py-12 space-y-16">
@@ -581,7 +620,7 @@ const Dashboard = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {loading ? (
+                    {(loading || contractLoading) ? (
                       <tr>
                         <td colSpan="7" className="py-8 text-center text-muted-foreground">
                           Loading positions...
@@ -590,7 +629,10 @@ const Dashboard = () => {
                     ) : positions.length === 0 ? (
                       <tr>
                         <td colSpan="7" className="py-8 text-center text-muted-foreground">
-                          No positions found. Create your first stake above!
+                          {isConnected && isOnSepolia 
+                            ? "No positions found. Create your first stake above!" 
+                            : "Connect your wallet to view positions"
+                          }
                         </td>
                       </tr>
                     ) : (
@@ -604,40 +646,44 @@ const Dashboard = () => {
                         >
                           <td className="py-4 px-2">#{position.position_index + 1}</td>
                           <td className="py-4 px-2">
-                            <Badge variant="secondary">{PLANS[position.plan_id]?.name || `Plan ${position.plan_id}`}</Badge>
+                            <Badge variant="secondary">
+                              {stakingPlans.find(p => p.id === position.plan_id)?.name || `Plan ${position.plan_id}`}
+                            </Badge>
                           </td>
                           <td className="py-4 px-2 font-medium">{formatAmount(position.principal_amount)}</td>
-                          <td className="py-4 px-2 text-primary font-medium">+{PLANS[position.plan_id]?.bonusPercent || 0}%</td>
+                          <td className="py-4 px-2 text-primary font-medium">
+                            +{stakingPlans.find(p => p.id === position.plan_id)?.bonusPercentage || 0}%
+                          </td>
                           <td className="py-4 px-2">{new Date(position.unlock_date).toLocaleDateString()}</td>
                           <td className="py-4 px-2">{formatTimeRemaining(position.unlock_date)}</td>
                           <td className="py-4 px-2">
                             <div className="flex items-center gap-2">
                               <Badge className={
-                                position.status === POSITION_STATUS.MATURED 
+                                position.status === 'matured' 
                                   ? "bg-blue-500/10 text-blue-600 border-blue-500/20"
-                                  : position.status === POSITION_STATUS.WITHDRAWN
+                                  : position.status === 'withdrawn'
                                   ? "bg-gray-500/10 text-gray-600 border-gray-500/20" 
                                   : "bg-green-500/10 text-green-600 border-green-500/20"
                               }>
                                 {position.status}
                               </Badge>
-                              {position.status === POSITION_STATUS.MATURED && (
+                              {position.status === 'matured' && (
                                 <Button
                                   size="sm"
                                   variant="outline"
                                   onClick={() => handleWithdraw(position.position_index)}
-                                  disabled={loading}
+                                  disabled={loading || contractLoading}
                                   className="bg-green-500/10 hover:bg-green-500/20 border-green-500/30"
                                 >
                                   Withdraw
                                 </Button>
                               )}
-                              {position.status === POSITION_STATUS.ACTIVE && (
+                              {position.status === 'active' && (
                                 <Button
                                   size="sm"
                                   variant="outline"
                                   onClick={() => handleEmergencyWithdraw(position.position_index)}
-                                  disabled={loading}
+                                  disabled={loading || contractLoading}
                                   className="bg-orange-500/10 hover:bg-orange-500/20 border-orange-500/30"
                                 >
                                   Emergency
@@ -661,40 +707,34 @@ const Dashboard = () => {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.6, delay: 0.4 }}
-        className="grid md:grid-cols-2 lg:grid-cols-4 gap-8"
+        className="flex justify-center"
       >
-        <Card className="glass-card border-0">
-          <CardContent className="p-8 text-center">
-            <div className="text-3xl font-bold text-primary mb-2">
-              {loading ? '...' : `${parseFloat(stats.total_staked || 0).toFixed(6)} ETH`}
-            </div>
-            <p className="text-sm text-muted-foreground">Total Staked</p>
-          </CardContent>
-        </Card>
-        <Card className="glass-card border-0">
-          <CardContent className="p-8 text-center">
-            <div className="text-3xl font-bold text-green-500 mb-2">
-              {loading ? '...' : `${parseFloat(stats.total_returns || 0).toFixed(6)} ETH`}
-            </div>
-            <p className="text-sm text-muted-foreground">Total Returns</p>
-          </CardContent>
-        </Card>
-        <Card className="glass-card border-0">
-          <CardContent className="p-8 text-center">
-            <div className="text-3xl font-bold text-blue-500 mb-2">
-              {loading ? '...' : stats.active_positions || 0}
-            </div>
-            <p className="text-sm text-muted-foreground">Active Positions</p>
-          </CardContent>
-        </Card>
-        <Card className="glass-card border-0">
-          <CardContent className="p-8 text-center">
-            <div className="text-3xl font-bold text-purple-500 mb-2">
-              {loading ? '...' : `${parseFloat(stats.active_balance || 0).toFixed(6)} ETH`}
-            </div>
-            <p className="text-sm text-muted-foreground">Available Balance</p>
-          </CardContent>
-        </Card>
+        <div className="grid md:grid-cols-3 gap-8 max-w-4xl">
+          <Card className="glass-card border-0">
+            <CardContent className="p-8 text-center">
+              <div className="text-3xl font-bold text-primary mb-2">
+                {loading ? '...' : `${parseFloat(stats.total_staked || 0).toFixed(6)} ETH`}
+              </div>
+              <p className="text-sm text-muted-foreground">Total Staked</p>
+            </CardContent>
+          </Card>
+          <Card className="glass-card border-0">
+            <CardContent className="p-8 text-center">
+              <div className="text-3xl font-bold text-green-500 mb-2">
+                {loading ? '...' : `${parseFloat(stats.total_returns || 0).toFixed(6)} ETH`}
+              </div>
+              <p className="text-sm text-muted-foreground">Total Returns</p>
+            </CardContent>
+          </Card>
+          <Card className="glass-card border-0">
+            <CardContent className="p-8 text-center">
+              <div className="text-3xl font-bold text-blue-500 mb-2">
+                {loading ? '...' : stats.active_positions || 0}
+              </div>
+              <p className="text-sm text-muted-foreground">Active Positions</p>
+            </CardContent>
+          </Card>
+        </div>
       </motion.div>
 
       {/* Activity & Maturities Section */}
@@ -722,33 +762,35 @@ const Dashboard = () => {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              {loading ? (
-                <div className="text-center text-muted-foreground py-4">
-                  Loading activities...
-                </div>
-              ) : activities.length === 0 ? (
-                <div className="text-center text-muted-foreground py-4">
-                  No recent activity
-                </div>
-              ) : (
-                activities.map((activity, index) => (
-                  <div key={activity.id} className="flex items-center justify-between p-3 rounded-lg bg-green-500/5 border border-green-500/20">
-                    <div className="flex items-center gap-3">
-                      <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                      <span className="text-sm">{activity.event_type.replace(/([A-Z])/g, ' $1').toLowerCase()}</span>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-sm font-medium">
-                        {activity.metadata?.principal_amount ? formatAmount(activity.metadata.principal_amount) : ''}
-                      </div>
-                      <div className="text-xs text-muted-foreground">
-                        {new Date(activity.created_at).toLocaleString()}
-                      </div>
-                    </div>
+            <div className="h-80 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-800 hover:scrollbar-thumb-gray-500">
+              <div className="space-y-4 pr-2">
+                {loading ? (
+                  <div className="text-center text-muted-foreground py-4">
+                    Loading activities...
                   </div>
-                ))
-              )}
+                ) : activities.length === 0 ? (
+                  <div className="text-center text-muted-foreground py-4">
+                    No recent activity
+                  </div>
+                ) : (
+                  activities.map((activity, index) => (
+                    <div key={activity.id} className="flex items-center justify-between p-3 rounded-lg bg-green-500/5 border border-green-500/20">
+                      <div className="flex items-center gap-3">
+                        <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                        <span className="text-sm">{activity.event_type.replace(/([A-Z])/g, ' $1').toLowerCase()}</span>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-sm font-medium">
+                          {activity.metadata?.principal_amount ? formatAmount(activity.metadata.principal_amount) : ''}
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          {new Date(activity.created_at).toLocaleString()}
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -761,39 +803,42 @@ const Dashboard = () => {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              {loading ? (
-                <div className="text-center text-muted-foreground py-4">
-                  Loading maturities...
-                </div>
-              ) : upcomingMaturities.length === 0 ? (
-                <div className="text-center text-muted-foreground py-4">
-                  No upcoming maturities
-                </div>
-              ) : (
-                upcomingMaturities.map((maturity, index) => (
-                  <div key={maturity.position_id} className="flex items-center justify-between p-3 rounded-lg bg-primary/5 border border-primary/20">
-                    <div>
-                      <div className="font-medium">Position #{maturity.position_id + 1}</div>
-                      <div className="text-sm text-muted-foreground">
-                        {PLANS[maturity.plan_id]?.name || `Plan ${maturity.plan_id}`} - {formatAmount(maturity.principal_amount)}
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-sm font-medium text-primary">
-                        {maturity.remaining_time > 0 ? formatTimeRemaining(maturity.unlock_date) : 'Matured'}
-                      </div>
-                      <div className="text-xs text-muted-foreground">
-                        {new Date(maturity.unlock_date).toLocaleDateString()}
-                      </div>
-                    </div>
+            <div className="h-80 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-800 hover:scrollbar-thumb-gray-500">
+              <div className="space-y-4 pr-2">
+                {loading ? (
+                  <div className="text-center text-muted-foreground py-4">
+                    Loading maturities...
                   </div>
-                ))
-              )}
+                ) : upcomingMaturities.length === 0 ? (
+                  <div className="text-center text-muted-foreground py-4">
+                    No upcoming maturities
+                  </div>
+                ) : (
+                  upcomingMaturities.map((maturity, index) => (
+                    <div key={maturity.position_id} className="flex items-center justify-between p-3 rounded-lg bg-primary/5 border border-primary/20">
+                      <div>
+                        <div className="font-medium">Position #{maturity.position_id + 1}</div>
+                        <div className="text-sm text-muted-foreground">
+                          {PLANS[maturity.plan_id]?.name || `Plan ${maturity.plan_id}`} - {formatAmount(maturity.principal_amount)}
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-sm font-medium text-primary">
+                          {maturity.remaining_time > 0 ? formatTimeRemaining(maturity.unlock_date) : 'Matured'}
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          {new Date(maturity.unlock_date).toLocaleDateString()}
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
             </div>
           </CardContent>
         </Card>
       </motion.div>
+
 
       {/* Platform Information Section */}
       <motion.div

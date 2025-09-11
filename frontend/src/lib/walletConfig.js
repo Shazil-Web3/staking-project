@@ -5,7 +5,7 @@ export const config = getDefaultConfig({
   appName: 'ETH Staking Platform',
   projectId: 'YOUR_PROJECT_ID', // You can get this from https://cloud.walletconnect.com/
   chains: [sepolia], // Only Sepolia testnet
-  ssr: false, // If your dApp uses server side rendering (SSR)
+  ssr: false, // Disable SSR for client-side rendering
 });
 
 // Sepolia testnet configuration

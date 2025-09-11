@@ -132,6 +132,10 @@ export const StakingProvider = ({ children }) => {
       setIsLoading(true);
       const positions = await contract.positionsOf(account);
       
+      // Get current block timestamp for accurate maturity calculation
+      const currentBlock = await provider.getBlock('latest');
+      const currentTimestamp = currentBlock.timestamp;
+      
       // Format positions data
       const formattedPositions = positions.map((position, index) => ({
         id: index,
@@ -141,7 +145,7 @@ export const StakingProvider = ({ children }) => {
         unlock: Number(position.unlock),
         planId: Number(position.planId),
         withdrawn: position.withdrawn,
-        isMatured: Date.now() / 1000 >= Number(position.unlock)
+        isMatured: currentTimestamp >= Number(position.unlock)
       }));
       
       setUserPositions(formattedPositions);
