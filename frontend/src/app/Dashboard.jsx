@@ -77,9 +77,53 @@ const Dashboard = () => {
     }
   }, [address, isOnSepolia]);
 
-  // Use smart contract positions when available
+  // Sync contract positions with Supabase when both are available
   useEffect(() => {
-    if (contractPositions && contractPositions.length > 0) {
+    if (address && contractPositions && contractPositions.length > 0 && positions.length > 0) {
+      // Add a small delay to prevent excessive syncing
+      const timeoutId = setTimeout(() => {
+        syncPositionsWithContract();
+      }, 1000);
+      
+      return () => clearTimeout(timeoutId);
+    }
+  }, [address, contractPositions, positions]);
+
+  // Function to sync positions between contract and Supabase
+  const syncPositionsWithContract = async () => {
+    if (!address || !contractPositions || !positions) return;
+    
+    try {
+      // Check each contract position against Supabase positions
+      for (let i = 0; i < contractPositions.length; i++) {
+        const contractPos = contractPositions[i];
+        const supabasePos = positions.find(p => p.position_index === i);
+        
+        if (supabasePos) {
+          // Check if status needs updating
+          const isMatured = contractPos.isMatured && !contractPos.withdrawn;
+          const isWithdrawn = contractPos.withdrawn;
+          const expectedStatus = isWithdrawn ? 'withdrawn' : (isMatured ? 'matured' : 'active');
+          
+          if (supabasePos.status !== expectedStatus) {
+            console.log(`Syncing position ${i} status from ${supabasePos.status} to ${expectedStatus}`);
+            await updatePositionStatusByIndex(address, i, expectedStatus);
+          }
+        }
+      }
+      
+      // Refresh data after syncing
+      await fetchDashboardData();
+    } catch (error) {
+      console.error('Error syncing positions:', error);
+    }
+  };
+
+  // Use smart contract positions only as fallback when Supabase data is not available
+  useEffect(() => {
+    // Only use contract positions if we don't have any positions from Supabase
+    // This prevents contract data from overriding correct Supabase data
+    if (contractPositions && contractPositions.length > 0 && positions.length === 0) {
       // Convert smart contract positions to the format expected by the UI
       const formattedPositions = contractPositions.map((position, index) => {
         const plan = stakingPlans.find(p => p.id === position.planId);
@@ -87,7 +131,7 @@ const Dashboard = () => {
         const isWithdrawn = position.withdrawn;
         
         // Debug logging
-        console.log('Position data:', {
+        console.log('Position data from contract:', {
           id: position.id,
           isMatured: position.isMatured,
           withdrawn: position.withdrawn,
@@ -109,11 +153,11 @@ const Dashboard = () => {
       });
       
       setPositions(formattedPositions);
-    } else if (contractPositions && contractPositions.length === 0) {
-      // Clear positions if no contract positions
+    } else if (contractPositions && contractPositions.length === 0 && positions.length === 0) {
+      // Clear positions if no contract positions and no Supabase positions
       setPositions([]);
     }
-  }, [contractPositions, stakingPlans]);
+  }, [contractPositions, stakingPlans, positions.length]);
 
   // Set up real-time subscriptions
   useEffect(() => {
@@ -149,6 +193,7 @@ const Dashboard = () => {
         getUpcomingMaturities(address)
       ]);
 
+      console.log('Fetched Supabase positions:', positionsData);
       setPositions(positionsData);
       setStats(statsData);
       setActivities(activitiesData);
@@ -264,8 +309,12 @@ const Dashboard = () => {
       const tx = await contractWithdraw(positionIndex);
       setTxHash(tx.hash);
       
-      // Refresh contract data to get updated positions
-      // The context will automatically update the positions
+      // Update position status in Supabase
+      await updatePositionStatusByIndex(address, positionIndex, 'withdrawn');
+      
+      // Refresh Supabase data to get updated positions
+      await fetchDashboardData();
+      
       console.log('Withdrawal successful:', tx.hash);
     } catch (err) {
       console.error('Error withdrawing position:', err);
@@ -287,8 +336,12 @@ const Dashboard = () => {
       const tx = await contractEmergencyWithdraw(positionIndex);
       setTxHash(tx.hash);
       
-      // Refresh contract data to get updated positions
-      // The context will automatically update the positions
+      // Update position status in Supabase
+      await updatePositionStatusByIndex(address, positionIndex, 'withdrawn');
+      
+      // Refresh Supabase data to get updated positions
+      await fetchDashboardData();
+      
       console.log('Emergency withdrawal successful:', tx.hash);
     } catch (err) {
       console.error('Error emergency withdrawing position:', err);
